@@ -165,10 +165,44 @@ Stim/
 
 ## 9. 里程碑
 
-- **M1：** ✅ 技术验证（IOKit 合盖方案不可用，确认 Power Protect 路线）
-- **M2：** 核心功能（toggle + 计时 + 合盖 Power Protect）
-- **M3：** UI 打磨（面板 + 设置 + 图标 + 安装引导）
-- **M4：** App Store 提审
+- **M1：** ✅ 技术验证（2026-03-16）
+  - IOKit `kPMSetClamshellSleepState` 不可用（macOS 26 + Apple Silicon，root 也不行）
+  - 确认走 Amphetamine Power Protect 同款路线（sudo pmset）
+  - 详见 `docs/m1-verification-record.md`
+
+- **M2：** ✅ 核心功能（2026-03-16）
+  - MenuBarExtra 菜单栏应用骨架
+  - IOKit Power Assertions 封装（PowerManager）
+  - 计时 session + countdown（SessionManager）
+  - 基本面板 UI：toggle + 时长选择 + 倒计时
+
+- **M3：** ✅ 合盖功能（2026-03-16，Steins 验收通过）
+  - ClamshellManager — sudo pmset disablesleep 方案
+  - Install Helper 首次安装引导（Touch ID / 管理员密码认证）
+  - 合盖保持唤醒 + 显示器控制 toggle
+  - PopoverView 选项区更新
+
+- **M4：** 🔜 UI 打磨 + 设置 + App Store 准备
+  - [ ] 设置窗口（SwiftUI Settings scene）
+    - 登录时启动（SMAppService）
+    - 启动时自动激活
+    - 默认持续时间
+    - 菜单栏图标样式选择（咖啡杯 / 圆点 / 闪电）
+  - [ ] 菜单栏图标优化
+    - 激活态 / 休眠态视觉区分（SF Symbol 或自定义图标）
+    - 激活时微妙动画或颜色变化
+  - [ ] 通知系统
+    - 到期前 5 分钟 macOS 通知
+    - session 开始 / 结束通知（可选）
+  - [ ] 低电量自动关闭（电池 < 20% 自动结束 session）
+  - [ ] Apple Silicon 电源事件监听
+    - 充电器插拔时重新执行 pmset disablesleep（防掉线）
+  - [ ] App Store 提审准备
+    - App 图标设计
+    - App Store 截图 + 描述文案
+    - App Store Connect 注册 + 名称验证（"Stim"）
+    - 隐私政策页面
+    - Xcode Archive + 签名
 
 ## 10. 参考资料
 
