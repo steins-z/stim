@@ -22,12 +22,20 @@ final class NotificationManager {
 
     // MARK: - Init
 
-    private init() {}
+    /// Whether notifications are available (requires a valid bundle identifier).
+    private let isAvailable: Bool
+
+    private init() {
+        // UNUserNotificationCenter crashes if there's no bundle identifier
+        // (e.g. when running via `swift run` without a proper app bundle).
+        isAvailable = Bundle.main.bundleIdentifier != nil
+    }
 
     // MARK: - Public API
 
     /// Request notification authorization if not already granted.
     func requestAuthorization() {
+        guard isAvailable else { return }
         let center = UNUserNotificationCenter.current()
         center.requestAuthorization(options: [.alert, .sound]) { granted, error in
             if let error = error {
@@ -44,7 +52,7 @@ final class NotificationManager {
     func scheduleExpiryNotification(for endDate: Date) {
         // Check if expiry notifications are enabled
         let enabled = UserDefaults.standard.object(forKey: "expiryNotificationEnabled") as? Bool ?? true
-        guard enabled else { return }
+        guard enabled, isAvailable else { return }
 
         // Cancel any existing expiry notification first
         cancelExpiryNotification()
@@ -80,12 +88,14 @@ final class NotificationManager {
 
     /// Cancel any pending session-expiry notification.
     func cancelExpiryNotification() {
+        guard isAvailable else { return }
         UNUserNotificationCenter.current()
             .removePendingNotificationRequests(withIdentifiers: [expiryNotificationID])
     }
 
     /// Cancel all pending Stim notifications.
     func cancelAll() {
+        guard isAvailable else { return }
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
     }
 }
