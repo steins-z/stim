@@ -41,6 +41,12 @@ final class SessionManager: ObservableObject {
     /// The selected duration for the next (or current) session.
     @Published var selectedDuration: SessionDuration = .indefinite
 
+    /// Whether to prevent sleep when the lid is closed.
+    @Published var clamshellEnabled = true
+
+    /// Whether to keep the display on (not just system sleep).
+    @Published var keepDisplayOn = false
+
     /// Seconds remaining in the current timed session. `nil` for indefinite.
     @Published private(set) var remainingSeconds: TimeInterval?
 
@@ -51,6 +57,7 @@ final class SessionManager: ObservableObject {
 
     private var timer: AnyCancellable?
     private let powerManager = PowerManager.shared
+    let clamshellManager = ClamshellManager.shared
 
     // MARK: - Public API
 
@@ -68,7 +75,11 @@ final class SessionManager: ObservableObject {
         guard !isActive else { return }
 
         isActive = true
-        powerManager.activate(keepDisplayOn: false)
+        powerManager.activate(keepDisplayOn: keepDisplayOn)
+
+        if clamshellEnabled {
+            clamshellManager.activate()
+        }
 
         if let seconds = selectedDuration.seconds {
             endDate = Date().addingTimeInterval(seconds)
@@ -85,6 +96,7 @@ final class SessionManager: ObservableObject {
     func stop() {
         isActive = false
         powerManager.deactivate()
+        clamshellManager.deactivate()
         stopTimer()
         endDate = nil
         remainingSeconds = nil

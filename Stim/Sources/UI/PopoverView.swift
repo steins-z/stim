@@ -27,6 +27,11 @@ struct PopoverView: View {
             // Duration picker
             durationSection
 
+            Divider()
+
+            // Options
+            optionsSection
+
             // Countdown (only shown during timed sessions)
             if let formatted = sessionManager.formattedRemaining, sessionManager.isActive {
                 Divider()
@@ -85,6 +90,42 @@ struct PopoverView: View {
                     }
                 )
             }
+        }
+    }
+
+    private var optionsSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Options")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            Toggle("Keep awake on lid close", isOn: $sessionManager.clamshellEnabled)
+                .toggleStyle(.checkbox)
+                .font(.body)
+
+            if sessionManager.clamshellEnabled && !sessionManager.clamshellManager.isInstalled {
+                Button("Install Helper…") {
+                    sessionManager.clamshellManager.install { success in
+                        if success {
+                            // If session is active, activate clamshell now
+                            if sessionManager.isActive {
+                                sessionManager.clamshellManager.activate()
+                            }
+                        }
+                    }
+                }
+                .font(.caption)
+                .foregroundColor(.accentColor)
+            }
+
+            Toggle("Keep display on", isOn: $sessionManager.keepDisplayOn)
+                .toggleStyle(.checkbox)
+                .font(.body)
+                .onChange(of: sessionManager.keepDisplayOn) { newValue in
+                    if sessionManager.isActive {
+                        PowerManager.shared.setDisplayAssertionEnabled(newValue)
+                    }
+                }
         }
     }
 
