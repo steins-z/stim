@@ -47,7 +47,8 @@ final class SessionManager: ObservableObject {
     @Published var selectedDuration: SessionDuration = .indefinite
 
     /// Whether to prevent sleep when the lid is closed.
-    @Published var clamshellEnabled = true
+    /// Defaults to off — uses pmset disablesleep which prevents ALL sleep including display.
+    @Published var clamshellEnabled = false
 
     /// Whether to keep the display on (not just system sleep).
     @Published var keepDisplayOn = false

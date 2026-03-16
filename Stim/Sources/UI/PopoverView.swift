@@ -139,6 +139,12 @@ struct PopoverView: View {
                 .toggleStyle(.checkbox)
                 .font(.body)
 
+            if sessionManager.clamshellEnabled {
+                Text("⚠️ This disables all sleep, including display sleep.")
+                    .font(.caption2)
+                    .foregroundColor(.orange)
+            }
+
             if sessionManager.clamshellEnabled && !sessionManager.clamshellManager.isInstalled {
                 Button("Install Helper…") {
                     sessionManager.clamshellManager.install { success in
