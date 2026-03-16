@@ -1,0 +1,10 @@
+(version 1)
+(deny default)
+(allow file-read*)
+(allow file-write* (subpath "/tmp"))
+(allow process-exec)
+(allow sysctl-read)
+(allow mach-lookup)
+(allow iokit-open (iokit-user-client-class "RootDomainUserClient"))
+;; 上面这行是关键 — App Store sandbox profile 是否包含它？
+;; 如果去掉这行再跑一次，就能模拟真实 App Sandbox 的效果
