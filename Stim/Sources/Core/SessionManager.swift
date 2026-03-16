@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 
 /// Represents the available session durations.
 enum SessionDuration: Int, CaseIterable, Identifiable {
@@ -29,8 +30,12 @@ enum SessionDuration: Int, CaseIterable, Identifiable {
 
 /// Manages awake sessions with optional countdown timers.
 ///
-/// Coordinates with `PowerManager` to create/release IOKit power assertions
-/// and drives a per-second countdown timer for timed sessions.
+/// Coordinates with:
+/// - `PowerManager` — IOKit power assertions (system/display sleep prevention)
+/// - `ClamshellManager` — lid-close keep-awake via `pmset disablesleep`
+/// - `NotificationManager` — expiry notifications (5 min before session ends)
+/// - `BatteryMonitor` — auto-stop on low battery
+/// - `PowerEventMonitor` — re-execute clamshell on charger plug/unplug
 final class SessionManager: ObservableObject {
 
     // MARK: - Published State
@@ -53,11 +58,47 @@ final class SessionManager: ObservableObject {
     /// The date/time when the current session will expire. `nil` for indefinite.
     @Published private(set) var endDate: Date?
 
+    /// Whether the session was auto-stopped due to low battery.
+    @Published private(set) var wasStoppedByLowBattery = false
+
+    // MARK: - User Defaults (read by Settings)
+
+    @AppStorage("autoActivateOnLaunch") private var autoActivateOnLaunch = false
+    @AppStorage("defaultDuration") private var defaultDuration: Int = SessionDuration.indefinite.rawValue
+
     // MARK: - Private
 
     private var timer: AnyCancellable?
     private let powerManager = PowerManager.shared
     let clamshellManager = ClamshellManager.shared
+    private let notificationManager = NotificationManager.shared
+    let batteryMonitor = BatteryMonitor.shared
+    private let powerEventMonitor = PowerEventMonitor.shared
+
+    // MARK: - Init
+
+    init() {
+        // Apply default duration from settings
+        if let savedDuration = SessionDuration(rawValue: defaultDuration) {
+            selectedDuration = savedDuration
+        }
+
+        // Set up battery monitor callback for auto-stop
+        batteryMonitor.onLowBattery = { [weak self] in
+            self?.handleLowBattery()
+        }
+
+        // Request notification permissions early
+        notificationManager.requestAuthorization()
+
+        // Auto-activate on launch if enabled (deferred to next run loop
+        // to allow SwiftUI views to initialize first)
+        if autoActivateOnLaunch {
+            DispatchQueue.main.async { [weak self] in
+                self?.start()
+            }
+        }
+    }
 
     // MARK: - Public API
 
@@ -74,19 +115,30 @@ final class SessionManager: ObservableObject {
     func start() {
         guard !isActive else { return }
 
+        wasStoppedByLowBattery = false
         isActive = true
         powerManager.activate(keepDisplayOn: keepDisplayOn)
 
         if clamshellEnabled {
             clamshellManager.activate()
+            powerEventMonitor.setClamshellActive(true)
+            powerEventMonitor.startMonitoring()
         }
+
+        // Start battery monitoring
+        batteryMonitor.startMonitoring()
 
         if let seconds = selectedDuration.seconds {
             endDate = Date().addingTimeInterval(seconds)
             remainingSeconds = seconds
             startTimer()
+
+            // Schedule expiry notification
+            if let end = endDate {
+                notificationManager.scheduleExpiryNotification(for: end)
+            }
         } else {
-            // Indefinite session — no timer
+            // Indefinite session — no timer, no expiry notification
             endDate = nil
             remainingSeconds = nil
         }
@@ -97,6 +149,10 @@ final class SessionManager: ObservableObject {
         isActive = false
         powerManager.deactivate()
         clamshellManager.deactivate()
+        powerEventMonitor.setClamshellActive(false)
+        powerEventMonitor.stopMonitoring()
+        batteryMonitor.stopMonitoring()
+        notificationManager.cancelExpiryNotification()
         stopTimer()
         endDate = nil
         remainingSeconds = nil
@@ -110,11 +166,17 @@ final class SessionManager: ObservableObject {
         guard isActive else { return }
 
         stopTimer()
+        notificationManager.cancelExpiryNotification()
 
         if let seconds = duration.seconds {
             endDate = Date().addingTimeInterval(seconds)
             remainingSeconds = seconds
             startTimer()
+
+            // Reschedule expiry notification for the new end time
+            if let end = endDate {
+                notificationManager.scheduleExpiryNotification(for: end)
+            }
         } else {
             endDate = nil
             remainingSeconds = nil
@@ -137,6 +199,16 @@ final class SessionManager: ObservableObject {
         } else {
             return String(format: "%d:%02d", minutes, seconds)
         }
+    }
+
+    // MARK: - Low Battery Handler
+
+    /// Handle low battery event — auto-stop the session.
+    private func handleLowBattery() {
+        guard isActive else { return }
+
+        wasStoppedByLowBattery = true
+        stop()
     }
 
     // MARK: - Timer

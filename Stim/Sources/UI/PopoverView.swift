@@ -4,13 +4,21 @@ import AppKit
 /// The main popover panel shown when clicking the menu bar icon.
 ///
 /// Contains:
-/// - App title with icon
+/// - App title with icon (respects icon style preference)
 /// - Toggle switch for keep-awake
 /// - Duration picker (radio-style)
+/// - Options (clamshell, display)
 /// - Countdown timer display (when a timed session is active)
-/// - Quit button
+/// - Battery warning (when low battery auto-stop is imminent)
+/// - Settings button and Quit button
 struct PopoverView: View {
     @EnvironmentObject var sessionManager: SessionManager
+    @AppStorage("menuBarIconStyle") private var iconStyleRaw: String = MenuBarIconStyle.coffeeCup.rawValue
+
+    /// Resolved icon style from user defaults.
+    private var iconStyle: MenuBarIconStyle {
+        MenuBarIconStyle(from: iconStyleRaw)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -38,6 +46,12 @@ struct PopoverView: View {
                 countdownSection(formatted)
             }
 
+            // Battery warning
+            if let warning = batteryWarningMessage {
+                Divider()
+                batteryWarningSection(warning)
+            }
+
             Divider()
 
             // Footer
@@ -47,13 +61,35 @@ struct PopoverView: View {
         .frame(width: 240)
     }
 
+    // MARK: - Battery Warning
+
+    /// Returns a warning message if battery is low, or `nil` if no warning is needed.
+    private var batteryWarningMessage: String? {
+        let monitor = sessionManager.batteryMonitor
+
+        // Show "was stopped" message after low-battery auto-stop
+        if sessionManager.wasStoppedByLowBattery {
+            return "Session stopped — low battery."
+        }
+
+        // Show warning when battery is approaching threshold
+        if sessionManager.isActive,
+           monitor.isOnBattery,
+           let level = monitor.batteryLevel,
+           monitor.isBelowThreshold {
+            return "Battery at \(level)% — session will auto-stop."
+        }
+
+        return nil
+    }
+
     // MARK: - Sections
 
     private var headerSection: some View {
         HStack(spacing: 8) {
             Image(systemName: sessionManager.isActive
-                  ? "cup.and.saucer.fill"
-                  : "cup.and.saucer")
+                  ? iconStyle.activeIcon
+                  : iconStyle.inactiveIcon)
                 .font(.title2)
                 .foregroundColor(sessionManager.isActive ? .accentColor : .secondary)
 
@@ -143,8 +179,30 @@ struct PopoverView: View {
         }
     }
 
+    /// Warning banner shown when battery is low or session was auto-stopped.
+    private func batteryWarningSection(_ message: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "battery.25")
+                .foregroundColor(.orange)
+                .font(.subheadline)
+
+            Text(message)
+                .font(.caption)
+                .foregroundColor(.orange)
+
+            Spacer()
+        }
+    }
+
     private var footerSection: some View {
         HStack {
+            Button("Settings…") {
+                openSettings()
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.secondary)
+            .font(.subheadline)
+
             Spacer()
 
             Button("Quit") {
@@ -154,6 +212,22 @@ struct PopoverView: View {
             .foregroundColor(.secondary)
             .font(.subheadline)
         }
+    }
+
+    // MARK: - Helpers
+
+    /// Open the app's Settings window.
+    private func openSettings() {
+        // On macOS 14+, the selector changed to showSettingsWindow:.
+        // For macOS 13 compatibility, try the legacy selector first.
+        if NSApp.responds(to: Selector(("showSettingsWindow:"))) {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        } else {
+            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+        }
+
+        // Bring the settings window to front
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 

@@ -127,22 +127,25 @@ SwiftUI Settings scene，macOS 原生风格，单 tab：
 电源事件（充电器插拔） → 监听 IOPowerSources → 重新执行脚本（防 Apple Silicon 掉线）
 ```
 
-### 关键文件结构（更新）
+### 关键文件结构（M4 更新）
 ```
 Stim/
-├── StimApp.swift              # App 入口，MenuBarExtra
+├── StimApp.swift                # App 入口，MenuBarExtra + Settings scene
 ├── Core/
-│   ├── PowerManager.swift     # IOKit Power Assertions 封装
-│   ├── ClamshellManager.swift # 合盖控制（Power Protect 模式）
-│   └── SessionManager.swift   # 计时 session 管理
+│   ├── PowerManager.swift       # IOKit Power Assertions 封装
+│   ├── ClamshellManager.swift   # 合盖控制（Power Protect 模式）
+│   ├── SessionManager.swift     # 计时 session 管理（集成所有子系统）
+│   ├── NotificationManager.swift # 到期提醒通知
+│   ├── BatteryMonitor.swift     # 电池电量监控 + 低电量自动关闭
+│   └── PowerEventMonitor.swift  # 电源事件监听（Apple Silicon 修复）
 ├── UI/
-│   ├── MenuBarView.swift      # 面板 UI
-│   ├── SettingsView.swift     # 设置窗口
-│   └── SetupGuideView.swift   # 合盖功能首次安装引导
+│   ├── PopoverView.swift        # 面板 UI
+│   └── SettingsView.swift       # 设置窗口 + MenuBarIconStyle 枚举
 ├── Resources/
-│   ├── clamshellControl.sh    # 合盖控制脚本（安装到 Application Scripts）
-│   └── Assets.xcassets/       # 图标资源
-└── Info.plist
+│   ├── clamshellControl.sh      # 合盖控制脚本
+│   └── Assets.xcassets/         # 图标资源
+├── Info.plist
+└── Stim.entitlements
 ```
 
 ## 8. ⚠️ 风险点
@@ -182,22 +185,20 @@ Stim/
   - 合盖保持唤醒 + 显示器控制 toggle
   - PopoverView 选项区更新
 
-- **M4：** 🔜 UI 打磨 + 设置 + App Store 准备
-  - [ ] 设置窗口（SwiftUI Settings scene）
+- **M4：** ✅ UI 打磨 + 设置 + 系统集成（2026-03-16）
+  - [x] 设置窗口（SwiftUI Settings scene）
     - 登录时启动（SMAppService）
     - 启动时自动激活
     - 默认持续时间
     - 菜单栏图标样式选择（咖啡杯 / 圆点 / 闪电）
-  - [ ] 菜单栏图标优化
-    - 激活态 / 休眠态视觉区分（SF Symbol 或自定义图标）
-    - 激活时微妙动画或颜色变化
-  - [ ] 通知系统
-    - 到期前 5 分钟 macOS 通知
-    - session 开始 / 结束通知（可选）
-  - [ ] 低电量自动关闭（电池 < 20% 自动结束 session）
-  - [ ] Apple Silicon 电源事件监听
+  - [x] 菜单栏图标优化
+    - 激活态 / 休眠态视觉区分（3 种 SF Symbol 样式可选）
+  - [x] 通知系统
+    - 到期前 5 分钟 macOS 通知（UNUserNotificationCenter）
+  - [x] 低电量自动关闭（电池 < 阈值自动结束 session，阈值可配置 10-50%）
+  - [x] Apple Silicon 电源事件监听
     - 充电器插拔时重新执行 pmset disablesleep（防掉线）
-  - [ ] App Store 提审准备
+  - [ ] App Store 提审准备（移至 M5）
     - App 图标设计
     - App Store 截图 + 描述文案
     - App Store Connect 注册 + 名称验证（"Stim"）
