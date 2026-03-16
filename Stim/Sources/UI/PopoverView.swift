@@ -218,16 +218,21 @@ struct PopoverView: View {
 
     /// Open the app's Settings window.
     private func openSettings() {
-        // On macOS 14+, the selector changed to showSettingsWindow:.
-        // For macOS 13 compatibility, try the legacy selector first.
-        if NSApp.responds(to: Selector(("showSettingsWindow:"))) {
+        // On macOS 14+ (Sonoma), Apple renamed the selector.
+        if #available(macOS 14, *) {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         } else {
             NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
         }
 
         // Bring the settings window to front
-        NSApp.activate(ignoringOtherApps: true)
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            // Find and bring the Settings window to front
+            for window in NSApp.windows where window.title == "Settings" || window.title == "Preferences" {
+                window.makeKeyAndOrderFront(nil)
+            }
+        }
     }
 }
 
