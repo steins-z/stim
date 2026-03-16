@@ -130,9 +130,9 @@ func testClamshellSleepState() {
         print("")
         print("⚠️  合盖控制在当前环境下不可用")
 
-        if callResult == 0xe00002c1 { // kIOReturnNotPermitted
+        if callResult == Int32(bitPattern: 0xe00002c1) { // kIOReturnNotPermitted
             print("   错误码 = kIOReturnNotPermitted → 权限不足")
-        } else if callResult == 0xe00002bc { // kIOReturnNotPrivileged
+        } else if callResult == Int32(bitPattern: 0xe00002bc) { // kIOReturnNotPrivileged
             print("   错误码 = kIOReturnNotPrivileged → 需要更高权限")
         }
     }
