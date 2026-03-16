@@ -40,6 +40,7 @@ final class ClamshellManager: ObservableObject {
 
     private init() {
         checkInstallation()
+        cleanupResidualState()
     }
 
     // MARK: - Installation Check
@@ -151,6 +152,7 @@ final class ClamshellManager: ObservableObject {
         runScript(argument: "enable") { [weak self] success in
             if success {
                 self?.isActive = true
+                UserDefaults.standard.set(true, forKey: "stim_clamshell_active")
             }
         }
     }
@@ -159,6 +161,21 @@ final class ClamshellManager: ObservableObject {
     func deactivate() {
         runScript(argument: "disable") { [weak self] _ in
             self?.isActive = false
+            UserDefaults.standard.set(false, forKey: "stim_clamshell_active")
+        }
+    }
+
+    // MARK: - Cleanup
+
+    /// On launch, check if a previous session left pmset disablesleep on
+    /// (e.g. due to crash or force quit) and restore normal behavior.
+    private func cleanupResidualState() {
+        let wasActive = UserDefaults.standard.bool(forKey: "stim_clamshell_active")
+        if wasActive && isInstalled {
+            print("[Stim] Cleaning up residual clamshell state from previous session")
+            runScript(argument: "disable") { _ in
+                UserDefaults.standard.set(false, forKey: "stim_clamshell_active")
+            }
         }
     }
 

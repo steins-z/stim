@@ -140,9 +140,10 @@ struct PopoverView: View {
                 .font(.body)
 
             if sessionManager.clamshellEnabled {
-                Text("⚠️ This disables all sleep, including display sleep.")
+                Text("⚠️ Disables all system sleep (including display). Requires AC power. Will be restored when Stim quits or session ends.")
                     .font(.caption2)
                     .foregroundColor(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if sessionManager.clamshellEnabled && !sessionManager.clamshellManager.isInstalled {
