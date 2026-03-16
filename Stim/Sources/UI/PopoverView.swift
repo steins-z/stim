@@ -196,12 +196,22 @@ struct PopoverView: View {
 
     private var footerSection: some View {
         HStack {
-            Button("Settings…") {
-                openSettings()
+            if #available(macOS 14, *) {
+                SettingsLink {
+                    Text("Settings…")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button("Settings…") {
+                    NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.secondary)
+                .font(.subheadline)
             }
-            .buttonStyle(.plain)
-            .foregroundColor(.secondary)
-            .font(.subheadline)
 
             Spacer()
 
@@ -211,27 +221,6 @@ struct PopoverView: View {
             .buttonStyle(.plain)
             .foregroundColor(.secondary)
             .font(.subheadline)
-        }
-    }
-
-    // MARK: - Helpers
-
-    /// Open the app's Settings window.
-    private func openSettings() {
-        // On macOS 14+ (Sonoma), Apple renamed the selector.
-        if #available(macOS 14, *) {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        } else {
-            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-        }
-
-        // Bring the settings window to front
-        DispatchQueue.main.async {
-            NSApp.activate(ignoringOtherApps: true)
-            // Find and bring the Settings window to front
-            for window in NSApp.windows where window.title == "Settings" || window.title == "Preferences" {
-                window.makeKeyAndOrderFront(nil)
-            }
         }
     }
 }
