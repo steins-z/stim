@@ -89,43 +89,85 @@ SwiftUI Settings scene，macOS 原生风格，单 tab：
 ### 防睡眠实现
 | 场景 | API | 说明 |
 |------|-----|------|
-| 阻止系统空闲睡眠 | `IOPMAssertionCreateWithName` → `PreventUserIdleSystemSleep` | caffeinate -i 同款 |
-| 阻止显示器睡眠 | `IOPMAssertionCreateWithName` → `PreventUserIdleDisplaySleep` | caffeinate -d 同款 |
-| 合盖不睡眠 | `IOConnectCallScalarMethod` → `kPMSetClamshellSleepState` | Amphetamine CDMManager 同款 |
-| Apple Silicon 电源切换修复 | 监听电源事件 + 重新 assert | 需验证沙箱兼容性 |
+| 阻止系统空闲睡眠 | `IOPMAssertionCreateWithName` → `PreventUserIdleSystemSleep` | caffeinate -i 同款，沙箱内可用 ✅ |
+| 阻止显示器睡眠 | `IOPMAssertionCreateWithName` → `PreventUserIdleDisplaySleep` | caffeinate -d 同款，沙箱内可用 ✅ |
+| 合盖不睡眠 | AppleScript → `sudo pmset disablesleep 1` | Amphetamine Power Protect 同款，需首次安装 helper |
+| 合盖恢复 | AppleScript → `sudo pmset disablesleep 0` | session 结束 / app 退出时恢复 |
 
-### 关键文件结构（预估）
+### ~~已排除方案（M1 验证结论）~~
+| 方案 | 结论 | 原因 |
+|------|------|------|
+| `IOConnectCallScalarMethod` + `kPMSetClamshellSleepState` | ❌ 不可用 | macOS 26 + Apple Silicon 下 root 也调不通，Apple 已收紧权限 |
+| `SMJobBless` privileged helper | ❌ 不采用 | 实现过重，App Store 审核无前人验证 |
+
+### 合盖方案详细设计（Power Protect 模式）
+
+**原理：** App Sandbox 允许应用从 `~/Library/Application Scripts/<bundle-id>/` 加载并执行脚本。通过配置 sudoers 规则让该脚本无密码调用 `pmset disablesleep`。
+
+**需要安装的文件（一次性，需管理员权限）：**
+1. `~/Library/Application Scripts/<bundle-id>/clamshellControl.sh` — shell 脚本，调用 `pmset disablesleep`
+2. `/private/etc/sudoers.d/stim_clamshell` — sudoers 规则，允许当前用户无密码执行该脚本
+
+**sudoers 规则示例：**
 ```
-Caffeine/
-├── CaffeineApp.swift          # App 入口，MenuBarExtra
-├── PowerManager.swift         # IOKit 封装，核心逻辑
-├── SettingsView.swift         # 设置窗口
-├── MenuBarView.swift          # 面板 UI
-├── Assets.xcassets/           # 图标资源
+<username> ALL=(root) NOPASSWD: /Users/<username>/Library/Application Scripts/<bundle-id>/clamshellControl.sh
+```
+
+**安装流程（UX）：**
+1. 用户首次开启"合盖保持唤醒"时，弹出引导弹窗
+2. 说明需要一次性安装辅助脚本
+3. 点击"安装"后触发 macOS 管理员认证（Touch ID / 密码）
+4. 通过 `NSAppleScript` 或 `AuthorizationExecuteWithPrivileges` 写入两个文件
+5. 安装完成，后续使用无感
+
+**运行时流程：**
+```
+用户开启合盖 → App 调用 NSUserUnixTask 执行脚本 → 脚本 sudo pmset disablesleep 1
+用户关闭合盖/退出 → 同上 → sudo pmset disablesleep 0
+电源事件（充电器插拔） → 监听 IOPowerSources → 重新执行脚本（防 Apple Silicon 掉线）
+```
+
+### 关键文件结构（更新）
+```
+Stim/
+├── StimApp.swift              # App 入口，MenuBarExtra
+├── Core/
+│   ├── PowerManager.swift     # IOKit Power Assertions 封装
+│   ├── ClamshellManager.swift # 合盖控制（Power Protect 模式）
+│   └── SessionManager.swift   # 计时 session 管理
+├── UI/
+│   ├── MenuBarView.swift      # 面板 UI
+│   ├── SettingsView.swift     # 设置窗口
+│   └── SetupGuideView.swift   # 合盖功能首次安装引导
+├── Resources/
+│   ├── clamshellControl.sh    # 合盖控制脚本（安装到 Application Scripts）
+│   └── Assets.xcassets/       # 图标资源
 └── Info.plist
 ```
 
 ## 8. ⚠️ 风险点
 
-1. **App Sandbox 下 `IOConnectCallScalarMethod` 是否可用？**
-   - 这是合盖功能的核心
-   - 需要在开发第一天验证
-   - 如果不行，需要走 Amphetamine 同样路线（辅助工具）或申请 entitlement
-   
+1. ~~**App Sandbox 下 `IOConnectCallScalarMethod` 是否可用？**~~ → **M1 已验证：不可用。已切换到 Power Protect 方案。**
+
 2. **App 名称**
-   - "Caffeine" 可能在 App Store 已被占用
-   - 备选：Espresso / Drip / Brew / Cortado
-   - 需要在 App Store Connect 验证
+   - ~~"Caffeine" 可能在 App Store 已被占用~~ → 已定名 **Stim**
+   - 需要在 App Store Connect 验证 "Stim" 可用性
 
 3. **App Store 审核**
    - Amphetamine 品类已验证，审核风险低
+   - Power Protect 模式（sudoers + 外部脚本）Amphetamine 已过审
    - 注意避免在描述中使用违规词汇
+
+4. **Apple Silicon 电源切换问题**
+   - Apple Silicon MacBook 在合盖模式下插拔充电器会导致系统短暂睡眠
+   - 需要监听电源事件并重新执行 `pmset disablesleep 1`
+   - Amphetamine 的 Power Protect 已解决此问题，可参考
 
 ## 9. 里程碑
 
-- **M1：** 技术验证（沙箱 + IOKit 合盖可行性）
-- **M2：** 核心功能（toggle + 计时 + 合盖）
-- **M3：** UI 打磨（面板 + 设置 + 图标）
+- **M1：** ✅ 技术验证（IOKit 合盖方案不可用，确认 Power Protect 路线）
+- **M2：** 核心功能（toggle + 计时 + 合盖 Power Protect）
+- **M3：** UI 打磨（面板 + 设置 + 图标 + 安装引导）
 - **M4：** App Store 提审
 
 ## 10. 参考资料
